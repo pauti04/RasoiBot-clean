@@ -1,0 +1,76 @@
+// server.js
+import express from "express";
+import cors from "cors";
+import fs from "fs";
+import bodyParser from "body-parser";
+import path from "path";
+
+const app = express();
+app.use(cors());
+app.use(bodyParser.json());
+
+const RECIPES_PATH = path.join(process.cwd(), "recipes.json");
+let RECIPES = JSON.parse(fs.readFileSync(RECIPES_PATH, "utf8"));
+
+// Helper: basic token search
+function findRecipesByQuery(q) {
+  q = (q || "").toLowerCase().trim();
+  if (!q) return RECIPES.slice(0, 10);
+  const tokens = q.split(/\s+/);
+  return RECIPES.filter(r => {
+    const hay = (r.name + " " + (r.tags||[]).join(" ") + " " + (r.ingredients||[]).map(i=>i.name).join(" ")).toLowerCase();
+    return tokens.every(t => hay.includes(t));
+  }).slice(0, 20);
+}
+
+app.post("/api/query", (req, res) => {
+  try {
+    const { text } = req.body;
+    if (!text) return res.status(400).json({ error: "Missing text" });
+    const found = findRecipesByQuery(text);
+    return res.json({ source: "local", results: found });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get("/api/recipe/:id", (req, res) => {
+  const r = RECIPES.find(x => x.id === req.params.id);
+  if (!r) return res.status(404).json({ error: "Not found" });
+  res.json(r);
+});
+
+app.post("/api/scale", (req, res) => {
+  const { id, servings } = req.body;
+  const r = RECIPES.find(x => x.id === id);
+  if (!r) return res.status(404).json({ error: "Recipe not found" });
+  const factor = servings / (r.servings || 1);
+  const scaled = JSON.parse(JSON.stringify(r));
+  scaled.servings = servings;
+  scaled.ingredients = scaled.ingredients.map(ing => {
+    if (typeof ing.quantity === "number") {
+      return { ...ing, quantity: Math.round(ing.quantity * factor * 100) / 100 };
+    }
+    return ing;
+  });
+  res.json(scaled);
+});
+
+app.post("/api/shopping-list", (req, res) => {
+  const { ids } = req.body; // array of recipe ids
+  const items = {};
+  (ids || []).forEach(id => {
+    const r = RECIPES.find(x=>x.id===id);
+    if (!r) return;
+    r.ingredients.forEach(i => {
+      const key = i.name.toLowerCase();
+      items[key] = items[key] || { name: i.name, total: 0, unit: i.unit || "", notes: [] };
+      if (typeof i.quantity === "number") items[key].total += i.quantity;
+      else items[key].notes.push(i.quantity || "");
+    });
+  });
+  res.json({ list: Object.values(items) });
+});
+
+const PORT = process.env.PORT || 5173;
+app.listen(PORT, () => console.log("Server running on", PORT));
