@@ -1,7 +1,9 @@
 import React, { useEffect, useRef, useState } from "react";
 import "./App.css";
-
-const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:5175";
+import { api } from "./api.js";
+import RecipeCard from "./components/RecipeCard.jsx";
+import Pantry from "./components/Pantry.jsx";
+import Shopping from "./components/Shopping.jsx";
 
 const SUGGESTIONS = [
   "dal tadka for 4",
@@ -14,63 +16,12 @@ const SUGGESTIONS = [
 const REGIONS = ["", "North Indian", "South Indian", "East Indian", "West Indian", "Indo-Chinese"];
 const DIETS = ["", "vegan", "vegetarian", "gluten-free"];
 
-function RecipeCard({ recipe }) {
-  const {
-    name, region, tags = [], servings,
-    prep_time_mins, cook_time_mins,
-    ingredients = [], steps = [], notes,
-  } = recipe;
-
-  const time = (prep_time_mins || 0) + (cook_time_mins || 0);
-
-  return (
-    <article className="recipe">
-      <div className="recipe__head">
-        <h3 className="recipe__title">{name}</h3>
-        <div className="recipe__meta">
-          {region ? `${region} · ` : ""}
-          {servings ? `${servings} servings` : ""}
-          {time ? ` · ${time} min` : ""}
-        </div>
-      </div>
-      {tags.length > 0 && (
-        <div className="recipe__tags">
-          {tags.map((t) => <span key={t} className="chip">{t}</span>)}
-        </div>
-      )}
-
-      <h4 className="recipe__section-title">Ingredients</h4>
-      <ul className="recipe__list">
-        {ingredients.map((i, idx) => (
-          <li key={idx}>
-            {i.quantity !== undefined ? `${i.quantity} ` : ""}
-            {i.unit ? `${i.unit} ` : ""}
-            {i.name}
-          </li>
-        ))}
-      </ul>
-
-      <h4 className="recipe__section-title">Steps</h4>
-      <ol className="recipe__list">
-        {steps.map((s, idx) => <li key={idx}>{s}</li>)}
-      </ol>
-
-      {notes && (
-        <>
-          <h4 className="recipe__section-title">Notes</h4>
-          <p style={{ margin: 0 }}>{notes}</p>
-        </>
-      )}
-    </article>
-  );
-}
-
-export default function App() {
+function Chat({ onShoppingChanged }) {
   const [messages, setMessages] = useState([
     {
       role: "bot",
       kind: "text",
-      text: "Hi! I'm RasoiBot 🍲. Ask me for Indian recipes — try a dish, region, or diet.",
+      text: "Hi! I'm RasoiBot 🍲. Ask me for an Indian recipe — or tap “What can I cook?” to use what's in your pantry.",
     },
   ]);
   const [input, setInput] = useState("");
@@ -93,52 +44,51 @@ export default function App() {
     setLoading(true);
 
     try {
-      const resp = await fetch(`${API_BASE}/api/query`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text: q, region: region || undefined, diet: diet || undefined }),
-      });
-      const data = await resp.json();
-
+      const data = await api.query({ text: q, region: region || undefined, diet: diet || undefined });
       if (data?.results?.length > 0) {
-        setMessages((m) => [
-          ...m,
-          {
-            role: "bot",
-            kind: "recipes",
-            recipes: data.results,
-            source: data.source,
-          },
-        ]);
+        setMessages((m) => [...m, { role: "bot", kind: "recipes", recipes: data.results, source: data.source }]);
       } else {
-        setMessages((m) => [
-          ...m,
-          {
-            role: "bot",
-            kind: "text",
-            text: data?.note || "Sorry, I couldn't find or generate a recipe for that.",
-          },
-        ]);
+        setMessages((m) => [...m, {
+          role: "bot",
+          kind: "text",
+          text: data?.note || "Sorry, I couldn't find or generate a recipe for that.",
+        }]);
       }
     } catch (err) {
-      setMessages((m) => [
-        ...m,
-        { role: "bot", kind: "text", text: "⚠️ Network error: " + err.message },
-      ]);
+      setMessages((m) => [...m, { role: "bot", kind: "text", text: "⚠️ " + err.message }]);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function cookable() {
+    if (loading) return;
+    setMessages((m) => [...m, { role: "user", kind: "text", text: "What can I cook with what I have?" }]);
+    setLoading(true);
+    try {
+      const data = await api.recipes.cookable(0.6);
+      if (data?.results?.length) {
+        setMessages((m) => [...m, {
+          role: "bot",
+          kind: "cookable",
+          results: data.results,
+        }]);
+      } else {
+        setMessages((m) => [...m, {
+          role: "bot",
+          kind: "text",
+          text: "Your pantry doesn't cover enough of any recipe yet. Add a few staples and try again.",
+        }]);
+      }
+    } catch (err) {
+      setMessages((m) => [...m, { role: "bot", kind: "text", text: "⚠️ " + err.message }]);
     } finally {
       setLoading(false);
     }
   }
 
   return (
-    <div className="app">
-      <header className="app__header">
-        <div>
-          <h1 className="app__title">RasoiBot 🍲</h1>
-          <div className="app__subtitle">Indian recipes, on demand</div>
-        </div>
-      </header>
-
+    <>
       <div className="filters" role="region" aria-label="Filters">
         <label>
           Region:&nbsp;
@@ -152,6 +102,9 @@ export default function App() {
             {DIETS.map((d) => <option key={d} value={d}>{d || "Any"}</option>)}
           </select>
         </label>
+        <button type="button" className="btn btn--ghost filters__action" onClick={cookable} disabled={loading}>
+          🍳 What can I cook?
+        </button>
       </div>
 
       <main className="app__main" ref={scrollerRef}>
@@ -160,12 +113,37 @@ export default function App() {
             if (m.kind === "recipes") {
               return (
                 <div className="row row--bot" key={i}>
-                  {m.recipes.map((r, j) => <RecipeCard key={r.id || j} recipe={r} />)}
+                  {m.recipes.map((r, j) => (
+                    <RecipeCard key={r.id || j} recipe={r} onAdded={onShoppingChanged} />
+                  ))}
                   {m.source && (
                     <div className="source">
                       {m.source === "ai" ? "✨ Freshly generated" : "📚 From the recipe library"}
                     </div>
                   )}
+                </div>
+              );
+            }
+            if (m.kind === "cookable") {
+              return (
+                <div className="row row--bot" key={i}>
+                  <div className="bubble bubble--bot">
+                    Based on your pantry, here are dishes you're close to making:
+                  </div>
+                  {m.results.map(({ recipe, coverage, missing }, j) => (
+                    <div key={recipe.id || j} className="cookable">
+                      <div className="cookable__head">
+                        <strong>{recipe.name}</strong>
+                        <span className="cookable__coverage">{Math.round(coverage * 100)}% covered</span>
+                      </div>
+                      {missing?.length > 0 && (
+                        <div className="cookable__missing">
+                          Missing: {missing.map((x) => x.name).join(", ")}
+                        </div>
+                      )}
+                      <RecipeCard recipe={recipe} onAdded={onShoppingChanged} />
+                    </div>
+                  ))}
                 </div>
               );
             }
@@ -210,6 +188,56 @@ export default function App() {
           </button>
         </div>
       </form>
+    </>
+  );
+}
+
+export default function App() {
+  const [tab, setTab] = useState("chat");
+  const [shoppingTick, setShoppingTick] = useState(0);
+
+  function bumpShopping() { setShoppingTick((n) => n + 1); }
+
+  return (
+    <div className="app">
+      <header className="app__header">
+        <div>
+          <h1 className="app__title">RasoiBot 🍲</h1>
+          <div className="app__subtitle">Indian recipes · pantry · shopping</div>
+        </div>
+        <nav className="tabs" aria-label="Sections">
+          {[
+            { id: "chat", label: "💬 Chat" },
+            { id: "pantry", label: "🥫 Pantry" },
+            { id: "shopping", label: "🛒 Shopping" },
+          ].map((t) => (
+            <button
+              key={t.id}
+              type="button"
+              className={`tab ${tab === t.id ? "tab--active" : ""}`}
+              onClick={() => setTab(t.id)}
+            >
+              {t.label}
+            </button>
+          ))}
+        </nav>
+      </header>
+
+      {tab === "chat" && <Chat onShoppingChanged={bumpShopping} />}
+      {tab === "pantry" && (
+        <main className="app__main">
+          <div className="app__main-inner">
+            <Pantry />
+          </div>
+        </main>
+      )}
+      {tab === "shopping" && (
+        <main className="app__main">
+          <div className="app__main-inner">
+            <Shopping refreshKey={shoppingTick} />
+          </div>
+        </main>
+      )}
     </div>
   );
 }

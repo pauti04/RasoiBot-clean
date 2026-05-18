@@ -1,13 +1,17 @@
-// RasoiBot server — Express + OpenAI for Indian recipes.
+// RasoiBot server — Express + OpenAI for Indian recipes,
+// with pantry + shopping-list storage.
 
 import express from "express";
 import cors from "cors";
-import fs from "fs";
-import path from "path";
 import bodyParser from "body-parser";
 import dotenv from "dotenv";
 import OpenAI from "openai";
 import rateLimit from "express-rate-limit";
+
+import { createStore, slugify } from "./lib/store.js";
+import { recipesRouter } from "./routes/recipes.js";
+import { pantryRouter } from "./routes/pantry.js";
+import { shoppingRouter } from "./routes/shopping.js";
 
 dotenv.config();
 
@@ -20,65 +24,23 @@ const OPENAI_MODEL = process.env.OPENAI_MODEL || "gpt-4o-mini";
 const PORT = process.env.PORT || 5175;
 
 if (!OPENAI_API_KEY) {
-  console.warn("⚠️  OPENAI_API_KEY missing — AI fallback will fail until it's set in .env");
+  console.warn("⚠️  OPENAI_API_KEY missing — AI fallback disabled until it's set in .env");
 }
-const openai = new OpenAI({ apiKey: OPENAI_API_KEY });
-
-const RECIPES_PATH = path.join(process.cwd(), "recipes.json");
-let RECIPES = [];
-try {
-  RECIPES = JSON.parse(fs.readFileSync(RECIPES_PATH, "utf8"));
-} catch {
-  RECIPES = [];
+let _openai = null;
+function getOpenAI() {
+  if (!OPENAI_API_KEY) return null;
+  if (!_openai) _openai = new OpenAI({ apiKey: OPENAI_API_KEY });
+  return _openai;
 }
 
-function slugify(s) {
-  return String(s || "")
-    .toLowerCase()
-    .trim()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/(^-|-$)/g, "")
-    .slice(0, 64);
-}
-
-function saveRecipes() {
-  fs.writeFileSync(RECIPES_PATH, JSON.stringify(RECIPES, null, 2));
-}
-
-function scoreRecipe(r, terms) {
-  const hay = (
-    r.name + " " +
-    (r.region || "") + " " +
-    (r.tags || []).join(" ") + " " +
-    (r.ingredients || []).map(i => i.name).join(" ")
-  ).toLowerCase();
-  let score = 0;
-  for (const t of terms) if (hay.includes(t)) score += hay.startsWith(t) ? 3 : 1;
-  return score;
-}
-
-function findRecipesByQuery(q, { region, diet, limit = 10 } = {}) {
-  const text = (q || "").toLowerCase().trim();
-  const terms = text.split(/\s+/).filter(Boolean);
-
-  let pool = RECIPES;
-  if (region) pool = pool.filter(r => (r.region || "").toLowerCase() === region.toLowerCase());
-  if (diet) pool = pool.filter(r => (r.tags || []).map(t => t.toLowerCase()).includes(diet.toLowerCase()));
-
-  if (!terms.length) return pool.slice(0, limit);
-
-  return pool
-    .map(r => ({ r, s: scoreRecipe(r, terms) }))
-    .filter(x => x.s > 0)
-    .sort((a, b) => b.s - a.s)
-    .slice(0, limit)
-    .map(x => x.r);
-}
+const recipesStore = createStore("recipes.json", []);
+const pantryStore = createStore("pantry.json", []);
+const shoppingStore = createStore("shopping.json", []);
 
 function isValidRecipe(obj) {
   if (!obj || typeof obj !== "object") return false;
   const required = ["name", "servings", "ingredients", "steps"];
-  return required.every(k => k in obj) &&
+  return required.every((k) => k in obj) &&
          Array.isArray(obj.ingredients) && obj.ingredients.length > 0 &&
          Array.isArray(obj.steps) && obj.steps.length > 0;
 }
@@ -118,34 +80,26 @@ User request: "${userText}"
 const aiLimiter = rateLimit({ windowMs: 60 * 1000, max: 10, standardHeaders: true, legacyHeaders: false });
 
 app.get("/api/health", (_req, res) => {
-  res.json({ ok: true, recipes: RECIPES.length, model: OPENAI_MODEL });
-});
-
-app.get("/api/recipes", (req, res) => {
-  const { q = "", region, diet, limit } = req.query;
-  const results = findRecipesByQuery(q, {
-    region,
-    diet,
-    limit: Math.min(Number(limit) || 10, 25),
+  res.json({
+    ok: true,
+    recipes: recipesStore.all().length,
+    pantry: pantryStore.all().length,
+    shopping: shoppingStore.all().length,
+    model: OPENAI_MODEL,
   });
-  res.json({ count: results.length, results });
 });
 
-app.get("/api/recipe/:id", (req, res) => {
-  const r = RECIPES.find(x => x.id === req.params.id);
-  if (!r) return res.status(404).json({ error: "Not found" });
-  res.json(r);
-});
+const { router: recipesApi, search: searchRecipes } = recipesRouter({ recipesStore, pantryStore });
+app.use("/api/recipes", recipesApi);
+app.use("/api/pantry", pantryRouter({ pantryStore }).router);
+app.use("/api/shopping", shoppingRouter({ shoppingStore, pantryStore, recipesStore }).router);
 
 app.post("/api/ai-recipe", aiLimiter, async (req, res) => {
   try {
     const { text } = req.body || {};
-    if (!text || typeof text !== "string") {
-      return res.status(400).json({ error: "Missing text" });
-    }
-    if (!OPENAI_API_KEY) {
-      return res.status(503).json({ error: "AI unavailable: OPENAI_API_KEY not set" });
-    }
+    if (!text || typeof text !== "string") return res.status(400).json({ error: "Missing text" });
+    const openai = getOpenAI();
+    if (!openai) return res.status(503).json({ error: "AI unavailable: OPENAI_API_KEY not set" });
 
     const resp = await openai.responses.create({
       model: OPENAI_MODEL,
@@ -167,12 +121,9 @@ app.post("/api/ai-recipe", aiLimiter, async (req, res) => {
     }
 
     const recipe = normalizeRecipe(parsed);
-
-    const dupe = RECIPES.find(r => r.id === recipe.id || r.name.toLowerCase() === recipe.name.toLowerCase());
-    if (!dupe) {
-      RECIPES.push(recipe);
-      saveRecipes();
-    }
+    const all = recipesStore.all();
+    const dupe = all.find((r) => r.id === recipe.id || r.name.toLowerCase() === recipe.name.toLowerCase());
+    if (!dupe) recipesStore.push(recipe);
 
     res.json({ source: "ai", recipe });
   } catch (err) {
@@ -183,11 +134,9 @@ app.post("/api/ai-recipe", aiLimiter, async (req, res) => {
 
 app.post("/api/query", async (req, res) => {
   const { text, region, diet } = req.body || {};
-  if (!text || typeof text !== "string") {
-    return res.status(400).json({ error: "Missing text" });
-  }
+  if (!text || typeof text !== "string") return res.status(400).json({ error: "Missing text" });
 
-  const local = findRecipesByQuery(text, { region, diet, limit: 5 });
+  const local = searchRecipes(text, { region, diet, limit: 5 });
   if (local.length) return res.json({ source: "local", results: local });
 
   if (!OPENAI_API_KEY) {
@@ -209,4 +158,13 @@ app.post("/api/query", async (req, res) => {
   }
 });
 
-app.listen(PORT, () => console.log(`🚀 RasoiBot server running on http://localhost:${PORT}`));
+const server = app.listen(PORT, () => console.log(`🚀 RasoiBot server running on http://localhost:${PORT}`));
+
+function shutdown() {
+  recipesStore.flushNow();
+  pantryStore.flushNow();
+  shoppingStore.flushNow();
+  server.close(() => process.exit(0));
+}
+process.on("SIGINT", shutdown);
+process.on("SIGTERM", shutdown);
