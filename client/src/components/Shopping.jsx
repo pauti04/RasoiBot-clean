@@ -133,9 +133,9 @@ export default function Shopping({ refreshKey = 0 }) {
                         {it.quantity ?? ""} {it.unit || ""}
                       </span>
                     )}
-                    {it.from_recipe && (
+                    {(it.from_recipe_name || it.from_recipe) && (
                       <span className="chip" style={{ marginLeft: 6 }}>
-                        from {it.from_recipe}
+                        from {it.from_recipe_name || it.from_recipe}
                       </span>
                     )}
                   </span>

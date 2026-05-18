@@ -8,24 +8,33 @@ for recipes not in the local library.
 - **Node.js 22+** (ESM)
 - **Express 5** with `body-parser`, `cors`, `express-rate-limit`
 - **OpenAI SDK** for AI fallback (optional — the rest works without a key)
-- **JSON files** for persistence (`recipes.json`, `pantry.json`, `shopping.json`)
+- **SQLite** for persistence (via `better-sqlite3`), seeded from the JSON files on first run
 
 ## Layout
 
 ```
 server/
 ├── lib/
-│   └── store.js              # Tiny JSON-file store (atomic writes, debounced flush)
+│   ├── db.js                 # SQLite connection, schema, first-run JSON seed
+│   ├── matching.js           # Ingredient ↔ pantry token-set matching
+│   ├── recipe.js             # isValidRecipe, normalizeRecipe, AI prompt
+│   └── store.js              # Collection store backed by SQLite (same API as before)
 ├── routes/
 │   ├── recipes.js            # Search + cookable scoring + by-id
 │   ├── pantry.js             # Pantry CRUD (merge-on-duplicate add)
 │   └── shopping.js           # Shopping CRUD + clear-checked + from-recipe
+├── test/
+│   ├── matching.test.js
+│   ├── store.test.js
+│   └── validation.test.js
+├── data/                     # SQLite db lives here (gitignored)
+│   └── rasoibot.db
 ├── .env.example
 ├── package.json
-├── pantry.json               # User pantry (starts empty)
-├── recipes.json              # Recipe library (seeded; AI-added recipes append here)
+├── pantry.json               # Seed file (only read if SQLite pantry table is empty)
+├── recipes.json              # Seed file (only read if SQLite recipes table is empty)
 ├── server.js                 # Express entrypoint
-└── shopping.json             # User shopping list (starts empty)
+└── shopping.json             # Seed file (only read if SQLite shopping table is empty)
 ```
 
 ## Scripts
@@ -34,6 +43,7 @@ server/
 | --------------- | -------------------------------------------------- |
 | `npm start`     | Run the server                                     |
 | `npm run dev`   | Run with `node --watch` for auto-reload on changes |
+| `npm test`      | Run the test suite (`node --test`)                 |
 
 ## Configuration
 
@@ -42,6 +52,7 @@ server/
 | `OPENAI_API_KEY`  | _(unset)_      | Enables the `/api/ai-recipe` and AI-fallback endpoints |
 | `OPENAI_MODEL`    | `gpt-4o-mini`  | Model used for AI generation                           |
 | `PORT`            | `5175`         | Port the server listens on                             |
+| `RASOIBOT_DATA_DIR` | `./data`     | Directory for the SQLite database file                 |
 
 Copy `server/.env.example` to `server/.env` and set the values you need.
 **Pantry and shopping endpoints work without `OPENAI_API_KEY`** — the server
@@ -96,14 +107,30 @@ Other endpoints are not rate-limited.
 
 ## Persistence
 
-`lib/store.js` provides a tiny JSON-file store with:
+Storage is **SQLite** via `better-sqlite3`. The db file lives at
+`server/data/rasoibot.db` (override with `RASOIBOT_DATA_DIR`).
 
-- **Atomic writes** — writes go to `<file>.tmp` and `rename()` over the target
-- **Debounced flush** — a burst of writes gets coalesced into one disk write
-- **Graceful shutdown** — `SIGINT` / `SIGTERM` flush pending writes before exit
+Schema is intentionally generic — each collection is a single table with
+`(id TEXT PRIMARY KEY, data TEXT)` where `data` is the JSON-serialized row.
+This keeps the route code identical whether the underlying store is JSON files
+or SQL: predicates run in JS over `store.all()`. The data volumes (hundreds of
+recipes, dozens of pantry items) make full-scan reads instant. If a field ever
+needs an index, hoist it to its own column in `lib/db.js`.
 
-The same store is used for all three JSON files. If you replace it with a real
-database, swap `createStore` and the routes don't need to change.
+### Seed on first run
+
+If a SQLite table is empty *and* the matching `<name>.json` file exists at the
+working directory, the server seeds the table from JSON on boot. Subsequent
+boots skip seeding. The JSON files themselves are not modified at runtime — they
+serve as version-controlled seed data.
+
+### Ingredient matching
+
+`lib/matching.js` implements pantry ↔ recipe-ingredient matching with
+content-word *set equality* after stripping cooking descriptors (chopped, fresh,
+ground, sliced, …). This avoids the false positive where a pantry "ginger"
+would otherwise claim to cover "ginger paste". The trade-off is conservatism:
+"red onion" pantry won't cover an "onion" ingredient.
 
 ## Recipe schema
 

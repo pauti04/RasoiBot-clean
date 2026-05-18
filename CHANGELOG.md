@@ -6,15 +6,41 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
-### Added
-- Standard GitHub community files: `LICENSE`, `CONTRIBUTING.md`,
-  `CODE_OF_CONDUCT.md`, `SECURITY.md`, `CHANGELOG.md`
-- `.github/` templates: issue forms, PR template, dependabot
-- CI workflow: lint + build client, syntax-check server on every push and PR
-- Sub-READMEs for `client/` and `server/`
-- `.editorconfig` and `.nvmrc` (Node 22)
+## [1.3.0] — SQLite, tests, smarter matching
 
-## [1.2.0] — Pantry & Shopping list
+### Added
+- **SQLite persistence** via `better-sqlite3`. Generic `(id, data)` schema per
+  collection; data file lives at `server/data/rasoibot.db`
+  (override with `RASOIBOT_DATA_DIR`).
+- Auto-seed on first run: legacy `recipes.json` / `pantry.json` / `shopping.json`
+  populate the SQLite tables if empty.
+- Test suite via `node --test`: 27 tests covering the store, ingredient
+  matching, and recipe validation.
+- `server/lib/recipe.js` — pure helpers (`isValidRecipe`, `normalizeRecipe`,
+  `composeAIPrompt`) separated from the HTTP entry point so tests can import them.
+- `server/lib/matching.js` — token-set ingredient matching.
+- Shopping items now carry `from_recipe_name` (denormalized); the UI shows
+  the recipe name instead of the slug.
+- CI now runs `npm test` for the server.
+
+### Changed
+- Ingredient matching now uses content-word **set equality** after stripping
+  cooking descriptors. Conservative but no false positives.
+- `isValidRecipe` enforces ingredient `name: string` and numeric `quantity`,
+  and rejects empty/whitespace-only steps.
+- AI-generated recipe IDs use `uniqueSlug` to avoid collisions with existing
+  recipes (`dal-tadka` → `dal-tadka-2`, `-3`, …).
+- `npm audit fix` applied: bumped vulnerable transitive deps in `body-parser`,
+  `express-rate-limit`, `ip-address`, `path-to-regexp`, `qs`.
+
+### Fixed
+- Pantry "ginger" no longer falsely covers a recipe's "ginger paste".
+- `recipes.json` had a duplicate `dal-tadka` entry — removed.
+
+### Removed
+- Old JSON-file store (replaced by SQLite-backed store with the same API).
+
+## [1.2.0] — Pantry, shopping list, community files
 
 ### Added
 - **Pantry**: track ingredients you have at home (add, merge-on-duplicate, remove)
@@ -32,6 +58,12 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Modularized server: `routes/recipes.js`, `routes/pantry.js`, `routes/shopping.js`
 - Client tab shell (Chat / Pantry / Shopping), `Pantry.jsx`, `Shopping.jsx`,
   `RecipeCard.jsx`, `api.js`
+- Standard GitHub community files: `LICENSE`, `CONTRIBUTING.md`,
+  `CODE_OF_CONDUCT.md`, `SECURITY.md`, `CHANGELOG.md`
+- `.github/` templates: issue forms, PR template, dependabot
+- CI workflow: lint + build client, syntax-check server on every push and PR
+- Sub-READMEs for `client/` and `server/`
+- `.editorconfig` and `.nvmrc` (Node 22)
 
 ### Changed
 - OpenAI client is now lazy — the rest of the API works without an API key
