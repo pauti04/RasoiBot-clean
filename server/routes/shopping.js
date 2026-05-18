@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { uid, normalizeName } from "../lib/store.js";
+import { isCovered } from "../lib/matching.js";
 
 export function shoppingRouter({ shoppingStore, pantryStore, recipesStore }) {
   const router = Router();
@@ -9,18 +10,20 @@ export function shoppingRouter({ shoppingStore, pantryStore, recipesStore }) {
   });
 
   router.post("/", (req, res) => {
-    const { name, quantity, unit, from_recipe } = req.body || {};
+    const { name, quantity, unit, from_recipe, from_recipe_name } = req.body || {};
     if (!name || typeof name !== "string") return res.status(400).json({ error: "name required" });
 
     const norm = normalizeName(name);
     const existing = shoppingStore.find((x) => normalizeName(x.name) === norm && !x.checked);
     if (existing) {
+      const mergedQty = (Number(existing.quantity) || 0) + (Number(quantity) || 0);
       const merged = shoppingStore.update(
         (x) => x.id === existing.id,
         {
-          quantity: (Number(existing.quantity) || 0) + (Number(quantity) || 0) || existing.quantity || quantity,
+          quantity: mergedQty || existing.quantity || quantity,
           unit: unit || existing.unit,
           from_recipe: from_recipe || existing.from_recipe,
+          from_recipe_name: from_recipe_name || existing.from_recipe_name,
         },
       );
       return res.json({ item: merged, merged: true });
@@ -33,6 +36,7 @@ export function shoppingRouter({ shoppingStore, pantryStore, recipesStore }) {
       unit: unit || "",
       checked: false,
       from_recipe: from_recipe || null,
+      from_recipe_name: from_recipe_name || null,
       added_at: new Date().toISOString(),
     };
     shoppingStore.push(item);
@@ -59,24 +63,24 @@ export function shoppingRouter({ shoppingStore, pantryStore, recipesStore }) {
     res.json({ removed });
   });
 
-  // Add the missing-from-pantry ingredients of a recipe to the shopping list.
   router.post("/from-recipe", (req, res) => {
     const { recipeId } = req.body || {};
     if (!recipeId) return res.status(400).json({ error: "recipeId required" });
 
-    const recipe = recipesStore.find((r) => r.id === recipeId);
+    const recipe = recipesStore.findById
+      ? recipesStore.findById(recipeId)
+      : recipesStore.find((r) => r.id === recipeId);
     if (!recipe) return res.status(404).json({ error: "Recipe not found" });
 
-    const pantryNames = pantryStore.all().map((p) => normalizeName(p.name));
+    const pantryNames = pantryStore.all().map((p) => p.name);
     const added = [];
     const skipped = [];
 
     for (const ing of recipe.ingredients || []) {
-      const n = normalizeName(ing.name);
-      const inPantry = pantryNames.some((p) => p && (n.includes(p) || p.includes(n)));
-      if (inPantry) { skipped.push(ing.name); continue; }
+      if (isCovered(ing.name, pantryNames)) { skipped.push(ing.name); continue; }
 
-      const existing = shoppingStore.find((x) => normalizeName(x.name) === n && !x.checked);
+      const norm = normalizeName(ing.name);
+      const existing = shoppingStore.find((x) => normalizeName(x.name) === norm && !x.checked);
       if (existing) { skipped.push(ing.name); continue; }
 
       const item = {
@@ -86,6 +90,7 @@ export function shoppingRouter({ shoppingStore, pantryStore, recipesStore }) {
         unit: ing.unit || "",
         checked: false,
         from_recipe: recipe.id,
+        from_recipe_name: recipe.name,
         added_at: new Date().toISOString(),
       };
       shoppingStore.push(item);

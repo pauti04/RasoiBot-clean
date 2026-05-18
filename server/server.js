@@ -1,5 +1,5 @@
 // RasoiBot server — Express + OpenAI for Indian recipes,
-// with pantry + shopping-list storage.
+// with SQLite-backed pantry, shopping list, and recipe library.
 
 import express from "express";
 import cors from "cors";
@@ -8,7 +8,9 @@ import dotenv from "dotenv";
 import OpenAI from "openai";
 import rateLimit from "express-rate-limit";
 
-import { createStore, slugify } from "./lib/store.js";
+import { getDB, closeDB, seedFromJSON } from "./lib/db.js";
+import { createStore } from "./lib/store.js";
+import { isValidRecipe, normalizeRecipe, composeAIPrompt } from "./lib/recipe.js";
 import { recipesRouter } from "./routes/recipes.js";
 import { pantryRouter } from "./routes/pantry.js";
 import { shoppingRouter } from "./routes/shopping.js";
@@ -33,49 +35,19 @@ function getOpenAI() {
   return _openai;
 }
 
-const recipesStore = createStore("recipes.json", []);
-const pantryStore = createStore("pantry.json", []);
-const shoppingStore = createStore("shopping.json", []);
+getDB();
+const recipesSeed  = seedFromJSON("recipes",  "recipes.json");
+const pantrySeed   = seedFromJSON("pantry",   "pantry.json");
+const shoppingSeed = seedFromJSON("shopping", "shopping.json");
+if (recipesSeed.seeded)  console.log(`📥 Seeded ${recipesSeed.seeded} recipes from JSON`);
+if (pantrySeed.seeded)   console.log(`📥 Seeded ${pantrySeed.seeded} pantry items from JSON`);
+if (shoppingSeed.seeded) console.log(`📥 Seeded ${shoppingSeed.seeded} shopping items from JSON`);
 
-function isValidRecipe(obj) {
-  if (!obj || typeof obj !== "object") return false;
-  const required = ["name", "servings", "ingredients", "steps"];
-  return required.every((k) => k in obj) &&
-         Array.isArray(obj.ingredients) && obj.ingredients.length > 0 &&
-         Array.isArray(obj.steps) && obj.steps.length > 0;
-}
+const recipesStore  = createStore("recipes");
+const pantryStore   = createStore("pantry");
+const shoppingStore = createStore("shopping");
 
-function normalizeRecipe(obj) {
-  const r = { ...obj };
-  if (!r.id || typeof r.id !== "string") r.id = slugify(r.name);
-  if (!Array.isArray(r.tags)) r.tags = [];
-  if (!r.region) r.region = "Indian";
-  return r;
-}
-
-function composePrompt(userText) {
-  return `
-You are RasoiBot — an Indian recipe assistant.
-Respond ONLY with valid JSON (no markdown, no extra text).
-Return a JSON object with this shape:
-{
-  "id": "slug-id",
-  "name": "Dish name",
-  "region": "North Indian | South Indian | East Indian | West Indian | Indo-Chinese",
-  "tags": ["vegetarian", "gluten-free"],
-  "servings": 2,
-  "prep_time_mins": 15,
-  "cook_time_mins": 30,
-  "ingredients": [
-    {"name": "ingredient", "quantity": 1, "unit": "cup"}
-  ],
-  "steps": ["step1", "step2"],
-  "notes": "optional notes"
-}
-
-User request: "${userText}"
-  `.trim();
-}
+const slugExists = (slug) => !!recipesStore.findById(slug);
 
 const aiLimiter = rateLimit({ windowMs: 60 * 1000, max: 10, standardHeaders: true, legacyHeaders: false });
 
@@ -86,6 +58,7 @@ app.get("/api/health", (_req, res) => {
     pantry: pantryStore.all().length,
     shopping: shoppingStore.all().length,
     model: OPENAI_MODEL,
+    storage: "sqlite",
   });
 });
 
@@ -98,12 +71,13 @@ app.post("/api/ai-recipe", aiLimiter, async (req, res) => {
   try {
     const { text } = req.body || {};
     if (!text || typeof text !== "string") return res.status(400).json({ error: "Missing text" });
+
     const openai = getOpenAI();
     if (!openai) return res.status(503).json({ error: "AI unavailable: OPENAI_API_KEY not set" });
 
     const resp = await openai.responses.create({
       model: OPENAI_MODEL,
-      input: composePrompt(text),
+      input: composeAIPrompt(text),
       max_output_tokens: 800,
     });
 
@@ -120,9 +94,8 @@ app.post("/api/ai-recipe", aiLimiter, async (req, res) => {
       return res.status(502).json({ error: "Invalid recipe from AI", raw: raw.slice(0, 300) });
     }
 
-    const recipe = normalizeRecipe(parsed);
-    const all = recipesStore.all();
-    const dupe = all.find((r) => r.id === recipe.id || r.name.toLowerCase() === recipe.name.toLowerCase());
+    const recipe = normalizeRecipe(parsed, slugExists);
+    const dupe = recipesStore.find((r) => r.name.toLowerCase() === recipe.name.toLowerCase());
     if (!dupe) recipesStore.push(recipe);
 
     res.json({ source: "ai", recipe });
@@ -161,9 +134,7 @@ app.post("/api/query", async (req, res) => {
 const server = app.listen(PORT, () => console.log(`🚀 RasoiBot server running on http://localhost:${PORT}`));
 
 function shutdown() {
-  recipesStore.flushNow();
-  pantryStore.flushNow();
-  shoppingStore.flushNow();
+  closeDB();
   server.close(() => process.exit(0));
 }
 process.on("SIGINT", shutdown);

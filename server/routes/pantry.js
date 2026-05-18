@@ -15,11 +15,12 @@ export function pantryRouter({ pantryStore }) {
     const norm = normalizeName(name);
     const existing = pantryStore.find((x) => normalizeName(x.name) === norm);
     if (existing) {
+      const mergedQty = (Number(existing.quantity) || 0) + (Number(quantity) || 0);
       const merged = pantryStore.update(
         (x) => x.id === existing.id,
         {
           name,
-          quantity: (Number(existing.quantity) || 0) + (Number(quantity) || 0) || quantity,
+          quantity: mergedQty || quantity || existing.quantity,
           unit: unit || existing.unit,
           updated_at: new Date().toISOString(),
         },

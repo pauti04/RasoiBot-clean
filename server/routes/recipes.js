@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { normalizeName } from "../lib/store.js";
+import { splitByPantry } from "../lib/matching.js";
 
 export function recipesRouter({ recipesStore, pantryStore }) {
   const router = Router();
@@ -40,25 +40,23 @@ export function recipesRouter({ recipesStore, pantryStore }) {
     res.json({ count: results.length, results });
   });
 
-  // Recipes mostly covered by current pantry.
   router.get("/cookable", (req, res) => {
     const raw = req.query.minCoverage;
     const parsed = raw === undefined ? 0.7 : Number(raw);
     const minCoverage = Math.max(0, Math.min(1, Number.isFinite(parsed) ? parsed : 0.7));
-    const pantryNames = new Set(pantryStore.all().map((p) => normalizeName(p.name)));
+    const pantryNames = pantryStore.all().map((p) => p.name);
 
     const scored = recipesStore.all().map((r) => {
       const ings = r.ingredients || [];
-      if (!ings.length) return { recipe: r, coverage: 0, have: 0, missing: [] };
-      const missing = [];
-      let have = 0;
-      for (const ing of ings) {
-        const n = normalizeName(ing.name);
-        const hit = [...pantryNames].some((p) => p && (n.includes(p) || p.includes(n)));
-        if (hit) have++;
-        else missing.push(ing);
-      }
-      return { recipe: r, coverage: have / ings.length, have, total: ings.length, missing };
+      if (!ings.length) return { recipe: r, coverage: 0, have: 0, total: 0, missing: [] };
+      const { have, missing } = splitByPantry(ings, pantryNames);
+      return {
+        recipe: r,
+        coverage: have.length / ings.length,
+        have: have.length,
+        total: ings.length,
+        missing,
+      };
     });
 
     const results = scored
@@ -70,7 +68,7 @@ export function recipesRouter({ recipesStore, pantryStore }) {
   });
 
   router.get("/:id", (req, res) => {
-    const r = recipesStore.find((x) => x.id === req.params.id);
+    const r = recipesStore.findById ? recipesStore.findById(req.params.id) : recipesStore.find((x) => x.id === req.params.id);
     if (!r) return res.status(404).json({ error: "Not found" });
     res.json(r);
   });

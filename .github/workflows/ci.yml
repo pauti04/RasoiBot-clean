@@ -60,9 +60,15 @@ jobs:
         run: |
           node --check server.js
           node --check lib/store.js
+          node --check lib/db.js
+          node --check lib/recipe.js
+          node --check lib/matching.js
           node --check routes/recipes.js
           node --check routes/pantry.js
           node --check routes/shopping.js
+
+      - name: Tests
+        run: npm test
 
       - name: Boot smoke test
         env:

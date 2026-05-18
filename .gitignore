@@ -6,6 +6,9 @@ node_modules/
 dist/
 build/
 
+# SQLite database — user data, regenerated on first run from seed JSON.
+server/data/
+
 .DS_Store
 *.log
 *.tmp
