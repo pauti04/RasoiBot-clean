@@ -1,28 +1,13 @@
 import React, { useEffect, useState } from "react";
 import { api } from "../api.js";
 
-export default function Pantry() {
-  const [items, setItems] = useState([]);
+export default function Pantry({ items, refresh }) {
   const [name, setName] = useState("");
   const [quantity, setQuantity] = useState("");
   const [unit, setUnit] = useState("");
-  const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  async function refresh() {
-    setLoading(true);
-    try {
-      const data = await api.pantry.list();
-      setItems(data.items || []);
-      setError(null);
-    } catch (e) {
-      setError(e.message);
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  useEffect(() => { refresh(); }, []);
+  useEffect(() => { setError(null); }, [items]);
 
   async function add(e) {
     e.preventDefault();
@@ -43,73 +28,82 @@ export default function Pantry() {
   async function remove(id) {
     try {
       await api.pantry.remove(id);
-      setItems((xs) => xs.filter((x) => x.id !== id));
+      refresh();
     } catch (e) {
       setError(e.message);
     }
   }
 
   return (
-    <section className="panel">
-      <header className="panel__header">
-        <h2 className="panel__title">Pantry</h2>
-        <span className="panel__count">{items.length} {items.length === 1 ? "item" : "items"}</span>
-      </header>
+    <div style={{ display: "flex", flexDirection: "column", gap: "1.5rem" }}>
+      <div className="page-head">
+        <span className="page-head__eyebrow">Your pantry</span>
+        <h1 className="page-head__title">What's in your kitchen</h1>
+        <p className="page-head__lede">
+          Add what you've got at home. RasoiBot uses this to skip items you don't
+          need to buy and to suggest recipes you can already cook.
+        </p>
+      </div>
 
-      <form className="panel__form" onSubmit={add}>
-        <input
-          placeholder="Ingredient (e.g., toor dal)"
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          aria-label="Ingredient name"
-        />
-        <input
-          placeholder="Qty"
-          value={quantity}
-          onChange={(e) => setQuantity(e.target.value)}
-          inputMode="decimal"
-          aria-label="Quantity"
-          style={{ width: "5rem" }}
-        />
-        <input
-          placeholder="Unit"
-          value={unit}
-          onChange={(e) => setUnit(e.target.value)}
-          aria-label="Unit"
-          style={{ width: "5rem" }}
-        />
-        <button type="submit" disabled={!name.trim()}>Add</button>
-      </form>
-
-      {error && <div className="panel__error">⚠️ {error}</div>}
-
-      {loading ? (
-        <div className="panel__empty">Loading…</div>
-      ) : items.length === 0 ? (
-        <div className="panel__empty">
-          Your pantry is empty. Add what you have at home — RasoiBot will use it
-          to figure out what's missing for a recipe.
+      <section className="panel">
+        <div className="panel__head">
+          <h2 className="panel__title">Ingredients</h2>
+          <span className="panel__count">{items.length} {items.length === 1 ? "item" : "items"}</span>
         </div>
-      ) : (
-        <ul className="panel__list">
-          {items.map((it) => (
-            <li key={it.id} className="panel__item">
-              <span className="panel__item-main">
-                <strong>{it.name}</strong>
-                {(it.quantity || it.unit) && (
-                  <span className="panel__item-meta">
-                    {" — "}
-                    {it.quantity ?? ""} {it.unit || ""}
-                  </span>
-                )}
-              </span>
-              <button type="button" className="link-danger" onClick={() => remove(it.id)}>
-                Remove
-              </button>
-            </li>
-          ))}
-        </ul>
-      )}
-    </section>
+
+        <form className="add-form" onSubmit={add}>
+          <input
+            placeholder="e.g., toor dal"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            aria-label="Ingredient name"
+          />
+          <input
+            placeholder="Qty"
+            value={quantity}
+            onChange={(e) => setQuantity(e.target.value)}
+            inputMode="decimal"
+            aria-label="Quantity"
+          />
+          <input
+            placeholder="Unit"
+            value={unit}
+            onChange={(e) => setUnit(e.target.value)}
+            aria-label="Unit"
+          />
+          <button className="btn btn--brand" type="submit" disabled={!name.trim()}>
+            Add
+          </button>
+        </form>
+
+        {error && <div className="alert">⚠️ {error}</div>}
+
+        {items.length === 0 ? (
+          <div className="empty">
+            <div className="empty__hero">🥫</div>
+            <div className="empty__title">Pantry is empty</div>
+            <div>Add a few staples so RasoiBot can suggest recipes you can already cook.</div>
+          </div>
+        ) : (
+          <ul className="list">
+            {items.map((it) => (
+              <li key={it.id} className="list__row">
+                <div className="list__main">
+                  <div className="list__name">{it.name}</div>
+                  {(it.quantity || it.unit) && (
+                    <div className="list__meta">
+                      {it.quantity ?? ""} {it.unit || ""}
+                    </div>
+                  )}
+                </div>
+                <button type="button" className="icon-btn" onClick={() => remove(it.id)} aria-label={`Remove ${it.name}`}>
+                  Remove
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
+    </div>
   );
 }

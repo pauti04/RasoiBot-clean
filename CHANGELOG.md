@@ -6,6 +6,38 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [1.4.0] — UI & UX redesign
+
+Whole-shell rebuild. Same features, completely different surface.
+
+### Added
+- **Sidebar shell** with the brand mark, primary nav (Discover / Pantry /
+  Shopping), and live counts next to each tab.
+- **Bottom-tab bar on mobile**, sidebar collapses below 860px.
+- **Discover** view replaces the chat metaphor: search-first, region/diet
+  filters as pills, recipe grid, and inline recipe detail.
+- **Pantry-aware recipe detail**: ingredients are checked off vs. flagged as
+  "need to buy" based on what's in your pantry. The CTA shows the exact
+  missing count (e.g. "🛒 Add 5 missing items to shopping list").
+- **From-your-pantry suggestions**: the cookable endpoint feeds a section that
+  appears when you have anything in your pantry — coverage % shown per card.
+- **Try-one-of-these starters** when search is empty.
+- **AI fallback affordance**: when local search has no hit, an explicit
+  "✨ Invent a recipe for X" button is offered.
+- **Fraunces** serif for headlines (Google Fonts) + Inter for UI.
+- **Warm spice palette** — paprika brand, turmeric accent, cream surfaces;
+  full dark-mode variant.
+
+### Changed
+- `RecipeCard` is now a condensed grid tile (title, meta, tags). The full
+  ingredients/steps view lives in `RecipeDetail.jsx`, opened inline.
+- `Pantry` and `Shopping` are now data-driven (props from `App.jsx`); the
+  parent owns refresh, so cross-view changes stay in sync.
+
+### Removed
+- Chat-stream metaphor (typing indicator, message bubbles, suggestion chips
+  as starter messages).
+
 ## [1.3.0] — SQLite, tests, smarter matching
 
 ### Added

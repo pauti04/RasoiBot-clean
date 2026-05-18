@@ -1,91 +1,34 @@
-import React, { useState } from "react";
-import { api } from "../api.js";
+import React from "react";
 
-export default function RecipeCard({ recipe, onAdded }) {
+export default function RecipeCard({ recipe, coverage, onOpen }) {
   const {
-    id, name, region, tags = [], servings,
+    name, region, tags = [], servings,
     prep_time_mins, cook_time_mins,
-    ingredients = [], steps = [], notes,
   } = recipe;
 
   const time = (prep_time_mins || 0) + (cook_time_mins || 0);
-  const [status, setStatus] = useState(null);
-  const [busy, setBusy] = useState(false);
-
-  async function addMissing() {
-    if (!id) {
-      setStatus({ kind: "error", text: "This recipe has no id yet." });
-      return;
-    }
-    setBusy(true);
-    setStatus(null);
-    try {
-      const data = await api.shopping.fromRecipe(id);
-      const added = data.added?.length || 0;
-      const skipped = data.skipped?.length || 0;
-      setStatus({
-        kind: "ok",
-        text: added
-          ? `Added ${added} item${added === 1 ? "" : "s"}${skipped ? ` (${skipped} already covered)` : ""}.`
-          : "Already covered by your pantry or list.",
-      });
-      onAdded?.(data);
-    } catch (err) {
-      setStatus({ kind: "error", text: err.message });
-    } finally {
-      setBusy(false);
-    }
-  }
+  const isAI = !recipe._fromLibrary;
 
   return (
-    <article className="recipe">
-      <div className="recipe__head">
-        <h3 className="recipe__title">{name}</h3>
-        <div className="recipe__meta">
-          {region ? `${region} · ` : ""}
-          {servings ? `${servings} servings` : ""}
-          {time ? ` · ${time} min` : ""}
-        </div>
-      </div>
-      {tags.length > 0 && (
-        <div className="recipe__tags">
-          {tags.map((t) => <span key={t} className="chip">{t}</span>)}
-        </div>
-      )}
-
-      <h4 className="recipe__section-title">Ingredients</h4>
-      <ul className="recipe__list">
-        {ingredients.map((i, idx) => (
-          <li key={idx}>
-            {i.quantity !== undefined ? `${i.quantity} ` : ""}
-            {i.unit ? `${i.unit} ` : ""}
-            {i.name}
-          </li>
-        ))}
-      </ul>
-
-      <h4 className="recipe__section-title">Steps</h4>
-      <ol className="recipe__list">
-        {steps.map((s, idx) => <li key={idx}>{s}</li>)}
-      </ol>
-
-      {notes && (
-        <>
-          <h4 className="recipe__section-title">Notes</h4>
-          <p style={{ margin: 0 }}>{notes}</p>
-        </>
-      )}
-
-      <div className="recipe__actions">
-        <button type="button" onClick={addMissing} disabled={busy} className="btn btn--accent">
-          {busy ? "Adding…" : "🛒 Add missing to shopping list"}
-        </button>
-        {status && (
-          <span className={`recipe__status recipe__status--${status.kind}`}>
-            {status.text}
-          </span>
+    <button type="button" className={`card ${isAI ? "card--ai" : ""}`} onClick={onOpen}>
+      <div className="card__top">
+        <h3 className="card__title">{name}</h3>
+        {coverage !== undefined && (
+          <span className="card__coverage">{Math.round(coverage * 100)}%</span>
         )}
       </div>
-    </article>
+      <div className="card__meta">
+        {region && <span>{region}</span>}
+        {region && (servings || time) && <span className="card__dot">·</span>}
+        {servings && <span>{servings} servings</span>}
+        {time > 0 && <span className="card__dot">·</span>}
+        {time > 0 && <span>{time} min</span>}
+      </div>
+      {tags.length > 0 && (
+        <div className="card__tags">
+          {tags.slice(0, 4).map((t) => <span key={t} className="chip">{t}</span>)}
+        </div>
+      )}
+    </button>
   );
 }
