@@ -1,30 +1,39 @@
 :root {
-  /* Spice palette — light */
-  --bg:           hsl(35 50% 97%);
-  --bg-tint:      hsl(35 60% 94%);
+  /* Editorial palette — light
+   * Primary: deep emerald (fresh, food-positive, modern)
+   * Surfaces: warm bone (cleaner than cream, more premium)
+   * Accent: amber (used sparingly for highlights)
+   * Neutrals: stone (warmer than slate, less clinical)
+   */
+  --bg:           hsl(40 18% 97%);
+  --bg-tint:      hsl(40 20% 94%);
   --surface:      hsl(0 0% 100%);
-  --surface-2:    hsl(35 40% 96%);
-  --ink:          hsl(20 30% 14%);
-  --ink-soft:     hsl(20 15% 38%);
-  --muted:        hsl(20 10% 55%);
-  --border:       hsl(30 22% 88%);
-  --border-soft:  hsl(30 22% 93%);
+  --surface-2:    hsl(40 14% 96%);
+  --ink:          hsl(20 14% 14%);
+  --ink-soft:     hsl(24 8% 36%);
+  --muted:        hsl(24 6% 55%);
+  --border:       hsl(30 10% 88%);
+  --border-soft:  hsl(30 10% 93%);
 
-  --brand:        hsl(15 75% 45%);   /* deep paprika */
-  --brand-ink:    hsl(0 0% 100%);
-  --brand-soft:   hsl(15 90% 96%);
-  --brand-strong: hsl(15 80% 38%);
+  --brand:        hsl(160 65% 28%);   /* deep emerald */
+  --brand-ink:    hsl(40 30% 98%);
+  --brand-soft:   hsl(160 40% 95%);
+  --brand-strong: hsl(160 70% 22%);
+  --brand-glow:   hsl(160 65% 28% / 0.12);
 
-  --accent:       hsl(40 92% 55%);   /* turmeric */
-  --accent-ink:   hsl(20 40% 18%);
-  --accent-soft:  hsl(40 95% 93%);
+  --accent:       hsl(32 92% 50%);   /* warm amber */
+  --accent-ink:   hsl(24 60% 18%);
+  --accent-soft:  hsl(38 95% 94%);
 
-  --success:      hsl(150 40% 36%);
-  --success-soft: hsl(150 45% 94%);
+  --success:      hsl(150 50% 36%);
+  --success-soft: hsl(150 50% 94%);
+  --danger:       hsl(0 65% 45%);
+  --danger-soft:  hsl(0 70% 95%);
 
-  --shadow-sm: 0 1px 2px hsl(20 30% 14% / 0.06);
-  --shadow:    0 6px 24px hsl(20 30% 14% / 0.08);
-  --shadow-lg: 0 18px 50px hsl(20 30% 14% / 0.12);
+  --shadow-sm: 0 1px 2px hsl(20 14% 14% / 0.06);
+  --shadow:    0 8px 28px hsl(20 14% 14% / 0.07), 0 2px 6px hsl(20 14% 14% / 0.04);
+  --shadow-lg: 0 24px 60px hsl(20 14% 14% / 0.12), 0 4px 12px hsl(20 14% 14% / 0.06);
+  --ring:      0 0 0 3px var(--brand-glow);
 
   --radius:    14px;
   --radius-sm: 10px;
@@ -33,6 +42,10 @@
 
   --sans:   "Inter", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   --serif:  "Fraunces", "Iowan Old Style", Charter, Georgia, serif;
+  --mono:   ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+
+  --ease:  cubic-bezier(0.32, 0.72, 0, 1);
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
 
   font-family: var(--sans);
   line-height: 1.55;
@@ -50,8 +63,8 @@ body { margin: 0; background: var(--bg); }
 h1, h2, h3, h4 {
   font-family: var(--serif);
   font-weight: 600;
-  letter-spacing: -0.01em;
-  font-variation-settings: "opsz" 60;
+  letter-spacing: -0.02em;
+  font-variation-settings: "opsz" 96;
   margin: 0;
   color: var(--ink);
 }
@@ -60,38 +73,55 @@ a { color: var(--brand); text-decoration: none; }
 a:hover { text-decoration: underline; }
 
 button { font: inherit; cursor: pointer; }
-button:disabled { cursor: not-allowed; opacity: 0.55; }
+button:disabled { cursor: not-allowed; opacity: 0.5; }
 
 input, select, textarea { font: inherit; color: inherit; }
 
+:focus-visible {
+  outline: none;
+  box-shadow: var(--ring);
+  border-radius: 8px;
+}
+
 ::selection { background: var(--accent); color: var(--accent-ink); }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --bg:           hsl(20 22% 8%);
-    --bg-tint:      hsl(20 22% 11%);
-    --surface:      hsl(20 18% 12%);
-    --surface-2:    hsl(20 15% 15%);
-    --ink:          hsl(35 30% 95%);
-    --ink-soft:     hsl(35 18% 78%);
-    --muted:        hsl(30 10% 58%);
-    --border:       hsl(25 14% 22%);
-    --border-soft:  hsl(25 14% 18%);
+    --bg:           hsl(160 8% 7%);
+    --bg-tint:      hsl(160 8% 10%);
+    --surface:      hsl(160 6% 11%);
+    --surface-2:    hsl(160 6% 14%);
+    --ink:          hsl(40 20% 95%);
+    --ink-soft:     hsl(40 10% 78%);
+    --muted:        hsl(30 6% 60%);
+    --border:       hsl(160 6% 20%);
+    --border-soft:  hsl(160 6% 16%);
 
-    --brand:        hsl(18 78% 58%);
-    --brand-ink:    hsl(20 40% 8%);
-    --brand-soft:   hsl(15 35% 18%);
-    --brand-strong: hsl(18 80% 50%);
+    --brand:        hsl(160 60% 50%);
+    --brand-ink:    hsl(160 30% 8%);
+    --brand-soft:   hsl(160 30% 16%);
+    --brand-strong: hsl(160 65% 58%);
+    --brand-glow:   hsl(160 60% 50% / 0.2);
 
-    --accent:       hsl(40 85% 60%);
-    --accent-ink:   hsl(20 40% 12%);
-    --accent-soft:  hsl(40 30% 22%);
+    --accent:       hsl(38 90% 60%);
+    --accent-ink:   hsl(24 60% 12%);
+    --accent-soft:  hsl(38 30% 20%);
 
-    --success:      hsl(150 40% 55%);
+    --success:      hsl(150 50% 60%);
     --success-soft: hsl(150 30% 18%);
+    --danger:       hsl(0 65% 60%);
+    --danger-soft:  hsl(0 30% 20%);
 
     --shadow-sm: 0 1px 2px hsl(0 0% 0% / 0.3);
-    --shadow:    0 6px 24px hsl(0 0% 0% / 0.35);
-    --shadow-lg: 0 18px 50px hsl(0 0% 0% / 0.45);
+    --shadow:    0 8px 28px hsl(0 0% 0% / 0.35);
+    --shadow-lg: 0 24px 60px hsl(0 0% 0% / 0.5);
   }
 }
