@@ -6,6 +6,44 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [1.5.0] — Production polish
+
+A focused pass to lift the UI from "looks good" to "feels production-grade."
+
+### Added
+- **New palette**: emerald primary, bone surfaces, warm amber accent, refined
+  stone neutrals. Distinctly different from the previous spice palette — more
+  editorial, more confident. Full dark-mode variant.
+- **Toast system** (`src/lib/toast.js` + `Toaster.jsx`) — replaces inline
+  status text. `aria-live="polite"`, auto-dismiss after 3.5s, manual close.
+- **Live search**: debounced (300ms) — results update as you type, no Enter
+  required. Spinner inside the search bar during fetches.
+- **Skeleton loaders** for the recipe grid during search.
+- **URL hash sync** — view, query, region, diet, open-recipe all persist in
+  the URL. Refreshing the page or sharing a link restores state.
+- **Keyboard shortcuts**:
+  - `/` focuses the search bar
+  - `Esc` closes the open recipe
+  - `Alt+1/2/3` switches between Discover / Pantry / Shopping
+  Visible hints in the sidebar footer.
+- **Optimistic updates** on pantry and shopping — adds/removes/toggles render
+  instantly and roll back on server error.
+
+### Changed
+- All status feedback (add/remove/clear) now goes through toasts.
+- Search input has live-loading spinner; "/" keyboard hint visible on desktop.
+- Card mount, detail open, and list rows have subtle staggered fade-up
+  animations. Hover transitions use a smoother cubic-bezier.
+- Focus states are now consistent across all interactive elements with a
+  visible `:focus-visible` ring tied to the brand color.
+- `prefers-reduced-motion` honored — all animations short-circuit.
+
+### Accessibility
+- `aria-current="page"` on the active nav item.
+- `aria-live="polite"` on the toaster.
+- Proper `aria-label` on icon buttons and ingredient marks.
+- All interactive elements have a visible focus ring.
+
 ## [1.4.0] — UI & UX redesign
 
 Whole-shell rebuild. Same features, completely different surface.

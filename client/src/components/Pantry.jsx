@@ -1,36 +1,52 @@
-import React, { useEffect, useState } from "react";
+import React, { useState } from "react";
 import { api } from "../api.js";
+import { toast } from "../lib/toast.js";
 
-export default function Pantry({ items, refresh }) {
+export default function Pantry({ items, setItems, refresh }) {
   const [name, setName] = useState("");
   const [quantity, setQuantity] = useState("");
   const [unit, setUnit] = useState("");
-  const [error, setError] = useState(null);
-
-  useEffect(() => { setError(null); }, [items]);
 
   async function add(e) {
     e.preventDefault();
-    if (!name.trim()) return;
+    const trimmed = name.trim();
+    if (!trimmed) return;
+
+    // Optimistic add — show immediately, reconcile on response
+    const tempId = `tmp_${Date.now()}`;
+    const optimistic = {
+      id: tempId,
+      name: trimmed,
+      quantity: quantity ? Number(quantity) : null,
+      unit: unit.trim() || "",
+      added_at: new Date().toISOString(),
+    };
+    setItems((curr) => [...curr, optimistic]);
+    setName(""); setQuantity(""); setUnit("");
+
     try {
       await api.pantry.add({
-        name: name.trim(),
-        quantity: quantity ? Number(quantity) : null,
-        unit: unit.trim() || undefined,
+        name: trimmed,
+        quantity: optimistic.quantity,
+        unit: optimistic.unit || undefined,
       });
-      setName(""); setQuantity(""); setUnit("");
-      refresh();
-    } catch (e) {
-      setError(e.message);
+      await refresh();
+      toast.success(`Added ${trimmed} to your pantry.`);
+    } catch (err) {
+      setItems((curr) => curr.filter((x) => x.id !== tempId));
+      toast.error(err.message);
     }
   }
 
-  async function remove(id) {
+  async function remove(id, displayName) {
+    const prev = items;
+    setItems((curr) => curr.filter((x) => x.id !== id));
     try {
       await api.pantry.remove(id);
-      refresh();
-    } catch (e) {
-      setError(e.message);
+      toast.info(`Removed ${displayName}.`);
+    } catch (err) {
+      setItems(prev);
+      toast.error(err.message);
     }
   }
 
@@ -57,6 +73,7 @@ export default function Pantry({ items, refresh }) {
             value={name}
             onChange={(e) => setName(e.target.value)}
             aria-label="Ingredient name"
+            autoComplete="off"
           />
           <input
             placeholder="Qty"
@@ -76,11 +93,9 @@ export default function Pantry({ items, refresh }) {
           </button>
         </form>
 
-        {error && <div className="alert">⚠️ {error}</div>}
-
         {items.length === 0 ? (
           <div className="empty">
-            <div className="empty__hero">🥫</div>
+            <div className="empty__hero" aria-hidden="true">🥫</div>
             <div className="empty__title">Pantry is empty</div>
             <div>Add a few staples so RasoiBot can suggest recipes you can already cook.</div>
           </div>
@@ -96,7 +111,12 @@ export default function Pantry({ items, refresh }) {
                     </div>
                   )}
                 </div>
-                <button type="button" className="icon-btn" onClick={() => remove(it.id)} aria-label={`Remove ${it.name}`}>
+                <button
+                  type="button"
+                  className="icon-btn"
+                  onClick={() => remove(it.id, it.name)}
+                  aria-label={`Remove ${it.name}`}
+                >
                   Remove
                 </button>
               </li>

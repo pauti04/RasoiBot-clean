@@ -1,6 +1,6 @@
 import React from "react";
 
-export default function RecipeCard({ recipe, coverage, onOpen }) {
+export default function RecipeCard({ recipe, coverage, onOpen, stagger = 0 }) {
   const {
     name, region, tags = [], servings,
     prep_time_mins, cook_time_mins,
@@ -10,11 +10,18 @@ export default function RecipeCard({ recipe, coverage, onOpen }) {
   const isAI = !recipe._fromLibrary;
 
   return (
-    <button type="button" className={`card ${isAI ? "card--ai" : ""}`} onClick={onOpen}>
+    <button
+      type="button"
+      className={`card ${isAI ? "card--ai" : ""}`}
+      style={{ "--stagger": `${stagger}ms` }}
+      onClick={onOpen}
+    >
       <div className="card__top">
         <h3 className="card__title">{name}</h3>
         {coverage !== undefined && (
-          <span className="card__coverage">{Math.round(coverage * 100)}%</span>
+          <span className="card__coverage" title={`${Math.round(coverage * 100)}% of ingredients in pantry`}>
+            {Math.round(coverage * 100)}%
+          </span>
         )}
       </div>
       <div className="card__meta">

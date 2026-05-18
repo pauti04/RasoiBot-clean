@@ -1,54 +1,78 @@
-import React, { useEffect, useState } from "react";
+import React, { useState } from "react";
 import { api } from "../api.js";
+import { toast } from "../lib/toast.js";
 
-export default function Shopping({ items, refresh }) {
+export default function Shopping({ items, setItems, refresh }) {
   const [name, setName] = useState("");
   const [quantity, setQuantity] = useState("");
   const [unit, setUnit] = useState("");
-  const [error, setError] = useState(null);
-
-  useEffect(() => { setError(null); }, [items]);
 
   async function add(e) {
     e.preventDefault();
-    if (!name.trim()) return;
+    const trimmed = name.trim();
+    if (!trimmed) return;
+
+    const tempId = `tmp_${Date.now()}`;
+    const optimistic = {
+      id: tempId,
+      name: trimmed,
+      quantity: quantity ? Number(quantity) : null,
+      unit: unit.trim() || "",
+      checked: false,
+      from_recipe: null,
+      from_recipe_name: null,
+      added_at: new Date().toISOString(),
+    };
+    setItems((curr) => [...curr, optimistic]);
+    setName(""); setQuantity(""); setUnit("");
+
     try {
       await api.shopping.add({
-        name: name.trim(),
-        quantity: quantity ? Number(quantity) : null,
-        unit: unit.trim() || undefined,
+        name: trimmed,
+        quantity: optimistic.quantity,
+        unit: optimistic.unit || undefined,
       });
-      setName(""); setQuantity(""); setUnit("");
-      refresh();
-    } catch (e) {
-      setError(e.message);
+      await refresh();
+    } catch (err) {
+      setItems((curr) => curr.filter((x) => x.id !== tempId));
+      toast.error(err.message);
     }
   }
 
   async function toggle(item) {
+    const next = !item.checked;
+    setItems((curr) => curr.map((x) => x.id === item.id ? { ...x, checked: next } : x));
     try {
-      await api.shopping.update(item.id, { checked: !item.checked });
-      refresh();
-    } catch (e) {
-      setError(e.message);
+      await api.shopping.update(item.id, { checked: next });
+    } catch (err) {
+      // revert
+      setItems((curr) => curr.map((x) => x.id === item.id ? { ...x, checked: !next } : x));
+      toast.error(err.message);
     }
   }
 
-  async function remove(id) {
+  async function remove(id, displayName) {
+    const prev = items;
+    setItems((curr) => curr.filter((x) => x.id !== id));
     try {
       await api.shopping.remove(id);
-      refresh();
-    } catch (e) {
-      setError(e.message);
+      toast.info(`Removed ${displayName}.`);
+    } catch (err) {
+      setItems(prev);
+      toast.error(err.message);
     }
   }
 
   async function clearChecked() {
+    const prev = items;
+    const checkedCount = prev.filter((x) => x.checked).length;
+    setItems((curr) => curr.filter((x) => !x.checked));
     try {
       await api.shopping.clearChecked();
-      refresh();
-    } catch (e) {
-      setError(e.message);
+      toast.success(`Cleared ${checkedCount} checked item${checkedCount === 1 ? "" : "s"}.`);
+    } catch (err) {
+      setItems(prev);
+      toast.error(err.message);
     }
   }
 
@@ -80,6 +104,7 @@ export default function Shopping({ items, refresh }) {
             value={name}
             onChange={(e) => setName(e.target.value)}
             aria-label="Item name"
+            autoComplete="off"
           />
           <input
             placeholder="Qty"
@@ -99,11 +124,9 @@ export default function Shopping({ items, refresh }) {
           </button>
         </form>
 
-        {error && <div className="alert">⚠️ {error}</div>}
-
         {items.length === 0 ? (
           <div className="empty">
-            <div className="empty__hero">🛒</div>
+            <div className="empty__hero" aria-hidden="true">🛒</div>
             <div className="empty__title">Nothing on the list yet</div>
             <div>Open a recipe and add what you're missing — or add an item directly above.</div>
           </div>
@@ -113,7 +136,12 @@ export default function Shopping({ items, refresh }) {
               {items.map((it) => (
                 <li key={it.id} className={`list__row ${it.checked ? "list__row--checked" : ""}`}>
                   <label className="list__check">
-                    <input type="checkbox" checked={!!it.checked} onChange={() => toggle(it)} aria-label={it.name} />
+                    <input
+                      type="checkbox"
+                      checked={!!it.checked}
+                      onChange={() => toggle(it)}
+                      aria-label={`Mark ${it.name} as ${it.checked ? "unchecked" : "checked"}`}
+                    />
                   </label>
                   <div className="list__main">
                     <div className="list__name">{it.name}</div>
@@ -128,7 +156,12 @@ export default function Shopping({ items, refresh }) {
                       )}
                     </div>
                   </div>
-                  <button type="button" className="icon-btn" onClick={() => remove(it.id)} aria-label={`Remove ${it.name}`}>
+                  <button
+                    type="button"
+                    className="icon-btn"
+                    onClick={() => remove(it.id, it.name)}
+                    aria-label={`Remove ${it.name}`}
+                  >
                     Remove
                   </button>
                 </li>
