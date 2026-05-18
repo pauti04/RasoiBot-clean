@@ -1,0 +1,79 @@
+name: 🐛 Bug report
+description: Something is broken or behaving unexpectedly.
+title: "[Bug] "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to file a bug report!
+        Please include enough detail for us to reproduce the issue.
+
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: A clear, concise description of the bug.
+      placeholder: When I click "Add missing to shopping list" on a recipe, nothing happens and there's an error in the console…
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: What did you expect to happen?
+      placeholder: Missing ingredients should appear on the shopping list.
+    validations:
+      required: true
+
+  - type: textarea
+    id: repro
+    attributes:
+      label: Steps to reproduce
+      description: Numbered steps from a clean start, please.
+      placeholder: |
+        1. `cd server && npm run dev`
+        2. `cd client && npm run dev`
+        3. Open the Chat tab, search "dal"
+        4. Click "Add missing to shopping list"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Which part of the app?
+      multiple: true
+      options:
+        - Chat / recipe search
+        - Pantry
+        - Shopping list
+        - AI generation
+        - API / server
+        - Build / dev tooling
+        - Other
+    validations:
+      required: true
+
+  - type: input
+    id: node
+    attributes:
+      label: Node.js version
+      placeholder: e.g., 22.19.0
+    validations:
+      required: true
+
+  - type: input
+    id: os
+    attributes:
+      label: OS
+      placeholder: e.g., macOS 14.5, Ubuntu 22.04
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant logs / screenshots
+      description: Paste server console output, browser console errors, or screenshots if helpful.
+      render: shell
