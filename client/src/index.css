@@ -1,68 +1,57 @@
 :root {
-  font-family: system-ui, Avenir, Helvetica, Arial, sans-serif;
+  --bg: #fffaf0;
+  --surface: #ffffff;
+  --ink: #1f2937;
+  --muted: #6b7280;
+  --brand: #b91c1c;
+  --brand-dark: #7f1d1d;
+  --brand-soft: #fee2e2;
+  --accent: #f59e0b;
+  --user-bg: #fef3c7;
+  --user-ink: #92400e;
+  --bot-bg: #ecfdf5;
+  --bot-ink: #065f46;
+  --border: #e5e7eb;
+  --shadow: 0 6px 20px rgba(0, 0, 0, 0.08);
+
+  font-family: Inter, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   line-height: 1.5;
-  font-weight: 400;
-
-  color-scheme: light dark;
-  color: rgba(255, 255, 255, 0.87);
-  background-color: #242424;
-
-  font-synthesis: none;
-  text-rendering: optimizeLegibility;
+  color: var(--ink);
+  background: var(--bg);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
 
-a {
-  font-weight: 500;
-  color: #646cff;
-  text-decoration: inherit;
-}
-a:hover {
-  color: #535bf2;
-}
+* { box-sizing: border-box; }
 
-body {
-  margin: 0;
-  display: flex;
-  place-items: center;
-  min-width: 320px;
-  min-height: 100vh;
-}
-
-h1 {
-  font-size: 3.2em;
-  line-height: 1.1;
-}
+html, body, #root { height: 100%; }
+body { margin: 0; }
 
 button {
-  border-radius: 8px;
-  border: 1px solid transparent;
-  padding: 0.6em 1.2em;
-  font-size: 1em;
-  font-weight: 500;
-  font-family: inherit;
-  background-color: #1a1a1a;
+  font: inherit;
   cursor: pointer;
-  transition: border-color 0.25s;
 }
-button:hover {
-  border-color: #646cff;
-}
-button:focus,
-button:focus-visible {
-  outline: 4px auto -webkit-focus-ring-color;
+button:disabled { cursor: not-allowed; opacity: 0.6; }
+
+input, select, textarea {
+  font: inherit;
+  color: inherit;
 }
 
-@media (prefers-color-scheme: light) {
+@media (prefers-color-scheme: dark) {
   :root {
-    color: #213547;
-    background-color: #ffffff;
-  }
-  a:hover {
-    color: #747bff;
-  }
-  button {
-    background-color: #f9f9f9;
+    --bg: #1a120b;
+    --surface: #2a1d12;
+    --ink: #f8fafc;
+    --muted: #cbd5e1;
+    --brand: #ef4444;
+    --brand-dark: #b91c1c;
+    --brand-soft: #3f1d1d;
+    --user-bg: #3f2d1d;
+    --user-ink: #fde68a;
+    --bot-bg: #14322a;
+    --bot-ink: #a7f3d0;
+    --border: #3f3027;
+    --shadow: 0 6px 20px rgba(0, 0, 0, 0.4);
   }
 }
